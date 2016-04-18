@@ -220,9 +220,12 @@ app.post('/webhook/', function (req, res) {
     if (event.message && event.message.text && event.recipient.id === FB_PAGE_ID) {
         msg = event.message.text;
     }
+
     if (event.postback) {
         msg = event.postback.payload;
     }
+
+
   }
   wit.runActions(
     sessionId, // the user's current session

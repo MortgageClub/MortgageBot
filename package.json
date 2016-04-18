@@ -13,13 +13,6 @@
     "node-wit": "^3.0.1",
     "request": "^2.71.0"
   },
-  "engines": {
-    "node": "0.12.7"
-  },
-  "repository": {
-    "type": "git",
-    "url": ""
-  },
   "keywords": [
     "node",
     "heroku",
