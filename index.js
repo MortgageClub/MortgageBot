@@ -76,7 +76,7 @@ var btnPropertyTypes = [
 ];
 
 // find first entity value
-var firstEntityValue = (entities, entity) => {
+var firstEntityValue = function(entities, entity) {
   var val = entities && entities[entity] &&
     Array.isArray(entities[entity]) &&
     entities[entity].length > 0 &&
@@ -89,7 +89,7 @@ var firstEntityValue = (entities, entity) => {
 };
 // Our bot actions
 var actions = {
-  say: (sessionId, context, msg, cb) => {
+  say: function(sessionId, context, msg, cb) {
     // Our bot has something to say!
     // Let's retrieve the Facebook user whose session belongs to
     var recipientId = sessions[sessionId].fbid;
@@ -104,52 +104,52 @@ var actions = {
       cb();
     }
   },
-  merge: (sessionId, context, entities, message, cb) => {
+  merge: function(sessionId, context, entities, message, cb) {
     var purpose = firstEntityValue(entities, 'purpose');
-    if(purpose != null) {
+    if(purpose !== null) {
       sessions[context.sessionId].context.purpose = purpose;
       context.purpose = purpose;
     }
     var numberStr = firstEntityValue(entities, 'number');
-    if(numberStr != null) {
+    if(numberStr !== null) {
       sessions[context.sessionId].context.numberStr = numberStr;
     }
     var usage = firstEntityValue(entities, 'usage');
-    if(usage != null) {
+    if(usage !== null) {
       sessions[context.sessionId].context.usage = usage;
       context.usage = usage;
     }
     var propertyType = firstEntityValue(entities, 'property_type');
-    if(usage != null) {
+    if(usage !== null) {
       sessions[context.sessionId].context.propertyType = propertyType;
       context.propertytype = propertyType;
     }
     cb(context);
   },
-  'welcome': (sessionId, context, cb) => {
+  'welcome': function(sessionId, context, cb) {
     sendButtonMessage(sessions[context.sessionId].fbid, welcome, btnPurposeTypes);
     cb(context);
   },
-  'purchase-price': (sessionId, context, cb) => {
+  'purchase-price': function(sessionId, context, cb) {
     sessions[context.sessionId].context.purchaseprice = sessions[context.sessionId].context.numberStr;
     context.purchaseprice = sessions[context.sessionId].context.purchaseprice;
     cb(context);
   },
-  'down-payment': (sessionId, context, cb) => {
+  'down-payment': function(sessionId, context, cb) {
     sessions[context.sessionId].context.downpayment = sessions[context.sessionId].context.numberStr;
     context.downpayment = sessions[context.sessionId].context.downpayment;
     sendButtonMessage(sessions[context.sessionId].fbid, "Excellent, is this a ", btnProperties);
     cb(context);
   },
-  'usage-purchase': (sessionId, context, cb) => {
+  'usage-purchase': function(sessionId, context, cb) {
     sendButtonMessage(sessions[context.sessionId].fbid, "Awesome, is this a ", btnPropertyTypes);
     cb(context);
   },
-  'property-type-purchase': (sessionId, context, cb) => {
+  'property-type-purchase': function(sessionId, context, cb) {
     sendTextMessage(sessions[context.sessionId].fbid, "Okay, last question, what's your credit score?");
     cb(context);
   },
-  'credit-purchase': (sessionId, context, cb) => {
+  'credit-purchase': function(sessionId, context, cb) {
     sessions[context.sessionId].context.creditScore = sessions[context.sessionId].context.numberStr;
     context.creditscore = sessions[context.sessionId].context.creditScore;
     sendTextMessage(sessions[context.sessionId].fbid, "Good news, I've found mortgage loans for you. Lowest rates as of today: ");
@@ -157,7 +157,7 @@ var actions = {
     cb(context);
   },
 
-  error: (sessionid, context, err) => {
+  error: function(sessionid, context, err) {
     console.log('Oops, I don\'t know what to do.');
   },
   // You should implement your custom actions here
@@ -175,7 +175,7 @@ var sessions = {};
 function findOrCreateSession(fbid) {
   var sessionId;
   // Let's see if we already have a session for the user fbid
-  Object.keys(sessions).forEach(k => {
+  Object.keys(sessions).forEach(function(k){
     if (sessions[k].fbid === fbid) {
       // Yep, got it!
       sessionId = k;
@@ -201,6 +201,8 @@ app.get('/webhook', function (req, res) {
 app.post('/webhook/', function (req, res) {
   //var messaging = getFirstMessagingEntry(req.body);
   messaging_events = req.body.entry[0].messaging;
+  var sessionId = null;
+  var msg = null;
   for (i = 0; i < messaging_events.length; i++) {
     event = req.body.entry[0].messaging[i];
     // Yay! We got a new message!
@@ -210,9 +212,7 @@ app.post('/webhook/', function (req, res) {
 
     // We retrieve the user's current session, or create one if it doesn't exist
     // This is needed for our bot to figure out the conversation history
-    var sessionId = findOrCreateSession(sender);
-
-    var msg = null;
+    sessionId = findOrCreateSession(sender);
 
     // We retrieve the message content
     sessions[sessionId].context.sessionId = sessionId;
@@ -220,36 +220,34 @@ app.post('/webhook/', function (req, res) {
     if (event.message && event.message.text && event.recipient.id === FB_PAGE_ID) {
         msg = event.message.text;
     }
-
     if (event.postback) {
         msg = event.postback.payload;
     }
-
-    wit.runActions(
-      sessionId, // the user's current session
-      msg, // the user's message
-      sessions[sessionId].context, // the user's current session state
-      (error, context) => {
-        if (error) {
-          console.log('Oops! Got an error from Wit:', error);
-        } else {
-          // Our bot did everything it has to do.
-          // Now it's waiting for further messages to proceed.
-          console.log('Waiting for futher messages.');
-
-          // Based on the session state, you might want to reset the session.
-          // This depends heavily on the business logic of your bot.
-          // Example:
-          // if (context['done']) {
-          //   delete sessions[sessionId];
-          // }
-
-          // Updating the user's current session state
-          // sessions[sessionId].context = context;
-        }
-      }
-    );
   }
+  wit.runActions(
+    sessionId, // the user's current session
+    msg, // the user's message
+    sessions[sessionId].context, // the user's current session state
+    function(error, context) {
+      if (error) {
+        console.log('Oops! Got an error from Wit:', error);
+      } else {
+        // Our bot did everything it has to do.
+        // Now it's waiting for further messages to proceed.
+        console.log('Waiting for futher messages.');
+
+        // Based on the session state, you might want to reset the session.
+        // This depends heavily on the business logic of your bot.
+        // Example:
+        // if (context['done']) {
+        //   delete sessions[sessionId];
+        // }
+
+        // Updating the user's current session state
+        // sessions[sessionId].context = context;
+      }
+    }
+  );
 
   res.sendStatus(200);
 });
