@@ -25,7 +25,7 @@ if (!FB_PAGE_TOKEN) {
 const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
 
 // Messenger API specific code
-var welcome = "asdawsd asd asda sd asd";
+var welcome = "Hello, I can help you get a rate quote in 10 secs. To get started, please let me know whether this is a purchase or refinance loan.";
 
 // See the Send API reference
 // https://developers.facebook.com/docs/messenger-platform/send-api-reference
