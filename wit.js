@@ -1,25 +1,10 @@
 'use strict';
 
-// Messenger API integration example
-// We assume you have:
-// * a Wit.ai bot setup (https://wit.ai/docs/quickstart)
-// * a Messenger Platform setup (https://developers.facebook.com/docs/messenger-platform/quickstart)
-// You need to `npm install` the following dependencies: body-parser, express, request.
-//
-// 1. npm install body-parser express request
-// 2. Download and install ngrok from https://ngrok.com/download
-// 3. ./ngrok -http 8445
-// 4. WIT_TOKEN=your_access_token FB_PAGE_ID=your_page_id FB_PAGE_TOKEN=your_page_token FB_VERIFY_TOKEN=verify_token node examples/messenger.js
-// 5. Subscribe your page to the Webhooks using verify_token and `https://<your_ngrok_io>/fb` as callback URL.
-// 6. Talk to your bot on Messenger!
-
 const bodyParser = require('body-parser');
 const express = require('express');
 const request = require('request');
 require('dotenv').config();
 
-// When not cloning the `node-wit` repo, replace the `require` like so:
-// const Wit = require('node-wit').Wit;
 const Wit = require('node-wit').Wit;
 
 // Webserver parameter
@@ -40,6 +25,7 @@ if (!FB_PAGE_TOKEN) {
 const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
 
 // Messenger API specific code
+var welcome = "asdawsd asd asda sd asd";
 
 // See the Send API reference
 // https://developers.facebook.com/docs/messenger-platform/send-api-reference
@@ -68,7 +54,53 @@ const fbMessage = (recipientId, msg, cb) => {
     }
   });
 };
-
+function sendButtonMessage(sender, text, buttons) {
+  const messageData = {
+    "attachment":{
+      "type":"template",
+      "payload":{
+        "template_type":"button",
+        "text": text,
+        "buttons": buttons
+      }
+    }
+  };
+  request({
+    url: 'https://graph.facebook.com/v2.6/me/messages',
+    qs: {access_token:FB_PAGE_TOKEN},
+    method: 'POST',
+    json: {
+      recipient: {id:sender},
+      message: messageData,
+    }
+  }, function(error, response, body) {
+    if (error) {
+      console.log('Error sending message: ', error);
+    } else if (response.body.error) {
+      console.log('Error: ', response.body.error);
+    }
+  });
+}
+function sendTextMessage(sender, text) {
+  const messageData = {
+    text:text
+  };
+  request({
+    url: 'https://graph.facebook.com/v2.6/me/messages',
+    qs: {access_token:FB_PAGE_TOKEN},
+    method: 'POST',
+    json: {
+      recipient: {id:sender},
+      message: messageData,
+    }
+  }, function(error, response, body) {
+    if (error) {
+      console.log('Error sending message: ', error);
+    } else if (response.body.error) {
+      console.log('Error: ', response.body.error);
+    }
+  });
+}
 // See the Webhook reference
 // https://developers.facebook.com/docs/messenger-platform/webhook-reference
 const getFirstMessagingEntry = (body) => {
@@ -85,7 +117,18 @@ const getFirstMessagingEntry = (body) => {
   ;
   return val || null;
 };
-
+// find first entity value
+var firstEntityValue = (entities, entity) => {
+  var val = entities && entities[entity] &&
+    Array.isArray(entities[entity]) &&
+    entities[entity].length > 0 &&
+    entities[entity][0].value
+  ;
+  if (!val) {
+    return null;
+  }
+  return typeof val === 'object' ? val.value : val;
+};
 // Wit.ai bot specific code
 
 // This will contain all user sessions.
@@ -109,7 +152,90 @@ const findOrCreateSession = (fbid) => {
   }
   return sessionId;
 };
+// function buttonMessage(text, buttons) {
+//   return {
+//     "attachment":{
+//       "type":"template",
+//       "payload":{
+//         "template_type":"button",
+//         "text": text,
+//         "buttons": buttons
+//       }
+//     }
+//   };
+// }
+// purpose types
+var btnPurposeTypes = [
+  {
+    "type":"postback",
+    "title":"Purchase",
+    "payload":"purchase"
+  },
+  {
+    "type":"postback",
+    "title":"Refinance",
+    "payload":"refinance"
+  }
+];
+//single family home, duplex, triplex, fourplex, or condo
+var btnProperties = [
+ {
+   "type":"postback",
+   "title":"Primary Residence",
+   "payload":"primary_residence"
+ },
+ {
+   "type":"postback",
+   "title":"Vacation Home",
+   "payload":"vacation_home"
+ },
+ {
+   "type":"postback",
+   "title":"Rental Property",
+   "payload":"rental_property"
+ }
+];
 
+var btnPropertyTypes = [
+ {
+   "type":"postback",
+   "title":"Single Family Home",
+   "payload":"sfh"
+ },
+ {
+   "type":"postback",
+   "title":"Multi-Family",
+   "payload":"multi_family"
+ },
+ {
+   "type":"postback",
+   "title":"Condo/Townhouse",
+   "payload":"condo"
+ }
+];
+
+// function sendFbMessage(sessionId, message){
+//   const recipientId = sessions[sessionId].fbid;
+//   if (recipientId) {
+//     // Yay, we found our recipient!
+//     // Let's forward our bot response to her.
+//     fbMessage(recipientId, message, (err, data) => {
+//       if (err) {
+//         console.log(
+//           'Oops! An error occurred while forwarding the response to',
+//           recipientId,
+//           ':',
+//           err
+//         );
+//       }
+//
+//       // Let's give the wheel back to our bot
+//     });
+//   } else {
+//     console.log('Oops! Couldn\'t find user for session:', sessionId);
+//     // Giving the wheel back to our bot
+//   }
+// }
 // Our bot actions
 const actions = {
   say: (sessionId, context, message, cb) => {
@@ -128,7 +254,6 @@ const actions = {
             err
           );
         }
-
         // Let's give the wheel back to our bot
         cb();
       });
@@ -139,13 +264,66 @@ const actions = {
     }
   },
   merge: (sessionId, context, entities, message, cb) => {
+    var purpose = firstEntityValue(entities, 'purpose');
+    if(purpose != null) {
+      sessions[sessionId].context.purpose = purpose;
+      context.purpose = purpose;
+    }
+    var numberStr = firstEntityValue(entities, 'number');
+    if(numberStr != null) {
+      sessions[sessionId].context.numberStr = numberStr;
+    }
+    var usage = firstEntityValue(entities, 'usage');
+    if(usage != null) {
+      sessions[sessionId].context.usage = usage;
+      context.usage = usage;
+    }
+    var propertyType = firstEntityValue(entities, 'property_type');
+    if(propertyType != null) {
+      sessions[sessionId].context.propertyType = propertyType;
+      context.propertytype = propertyType;
+    }
+    cb(context);
+  },
+  'welcome': (sessionId, context, cb) => {
+    const recipientId = sessions[sessionId].fbid;
+    sendButtonMessage(recipientId, welcome, btnPurposeTypes);
+    cb(context);
+  },
+  'purchase-price': (sessionId, context, cb) => {
+    const recipientId = sessions[sessionId].fbid;
+    sessions[sessionId].context.purchaseprice = sessions[sessionId].context.numberStr;
+    context.purchaseprice = sessions[sessionId].context.purchaseprice;
+    cb(context);
+  },
+  'down-payment': (sessionId, context, cb) => {
+    const recipientId = sessions[sessionId].fbid;
+    sessions[sessionId].context.downpayment = sessions[sessionId].context.numberStr;
+    context.downpayment = sessions[sessionId].context.downpayment;
+    sendButtonMessage(recipientId, "Excellent, is this a ", btnProperties);
+    cb(context);
+  },
+  'usage-purchase': (sessionId, context, cb) => {
+    const recipientId = sessions[sessionId].fbid;
+    sendButtonMessage(recipientId, "Awesome, is this a ", btnPropertyTypes);
+    cb(context);
+  },
+  'property-type-purchase': (sessionId, context, cb) => {
+    const recipientId = sessions[sessionId].fbid;
+    sendTextMessage(recipientId, "Okay, last question, what's your credit score?");
+    cb(context);
+  },
+  'credit-purchase': (sessionId, context, cb) => {
+    const recipientId = sessions[sessionId].fbid;
+    sessions[sessionId].context.creditScore = sessions[sessionId].context.numberStr;
+    context.creditscore = sessions[sessionId].context.creditScore;
+    sendTextMessage(recipientId, "Good news, I've found mortgage loans for you. Lowest rates as of today: ");
+    console.log(context);
     cb(context);
   },
   error: (sessionId, context, error) => {
     console.log(error.message);
   },
-  // You should implement your custom actions here
-  // See https://wit.ai/docs/quickstart
 };
 
 // Setting up our bot
@@ -178,7 +356,7 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', (req, res) => {
   // Parsing the Messenger API response
   const messaging = getFirstMessagingEntry(req.body);
-  if (messaging && messaging.message && messaging.recipient.id === FB_PAGE_ID) {
+  if (messaging && messaging.recipient.id === FB_PAGE_ID) {
     // Yay! We got a new message!
 
     // We retrieve the Facebook user ID of the sender
@@ -189,26 +367,36 @@ app.post('/webhook', (req, res) => {
     const sessionId = findOrCreateSession(sender);
 
     // We retrieve the message content
-    const msg = messaging.message.text;
-    const atts = messaging.message.attachments;
+    var msg = null;
+    // const atts = messaging.message.attachments;
 
-    if (atts) {
-      // We received an attachment
+    if (messaging.message && messaging.message.text) {
+        msg = messaging.message.text;
+    }
 
-      // Let's reply with an automatic message
-      fbMessage(
-        sender,
-        'Sorry I can only process text messages for now.'
-      );
-    } else if (msg) {
+    if (messaging.postback) {
+        msg = messaging.postback.payload;
+    }
+
+    // if (atts) {
+    //   // We received an attachment
+    //
+    //   // Let's reply with an automatic message
+    //   fbMessage(
+    //     sender,
+    //     'Sorry I can only process text messages for now.'
+    //   );
+    // } else
+    if (msg) {
       // We received a text message
-
+      var maxSteps = 10;
       // Let's forward the message to the Wit.ai Bot Engine
       // This will run all actions until our bot has nothing left to do
       wit.runActions(
         sessionId, // the user's current session
         msg, // the user's message
-        sessions[sessionId].context, // the user's current session state
+        sessions[sessionId].context,
+        // the user's current session state
         (error, context) => {
           if (error) {
             console.log('Oops! Got an error from Wit:', error);
@@ -227,7 +415,7 @@ app.post('/webhook', (req, res) => {
             // Updating the user's current session state
             sessions[sessionId].context = context;
           }
-        }
+        }, maxSteps
       );
     }
   }
