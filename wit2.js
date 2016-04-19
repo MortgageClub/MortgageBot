@@ -264,16 +264,17 @@ const actions = {
     }
   },
   merge: (sessionId, context, entities, message, cb) => {
-    var purpose = firstEntityValue(entities, 'purpose');
-    if(purpose != null) {
-      sessions[sessionId].context.purpose = purpose;
-      context.purpose = purpose;
-    }
     var greeting = firstEntityValue(entities, 'greeting');
     if(greeting != null) {
       sessions[sessionId].context.greeting = greeting;
       context.greeting = greeting;
     }
+    var purpose = firstEntityValue(entities, 'purpose');
+    if(purpose != null) {
+      sessions[sessionId].context.purpose = purpose;
+      context.purpose = purpose;
+    }
+
     var numberStr = firstEntityValue(entities, 'number');
     if(numberStr != null) {
       sessions[sessionId].context.numberStr = numberStr;
@@ -295,82 +296,53 @@ const actions = {
     sendButtonMessage(recipientId, welcome, btnPurposeTypes);
     cb(context);
   },
-  'purchase-price': (sessionId, context, cb) => {
-    const recipientId = sessions[sessionId].fbid;
-    sessions[sessionId].context.property_value = sessions[sessionId].context.numberStr;
-    context.property_value = sessions[sessionId].context.property_value;
-    cb(context);
-  },
-  'down-payment': (sessionId, context, cb) => {
-    const recipientId = sessions[sessionId].fbid;
-    sessions[sessionId].context.down_payment = sessions[sessionId].context.numberStr;
-    context.down_payment = sessions[sessionId].context.down_payment;
-    sendButtonMessage(recipientId, "Excellent, is this a ", btnProperties);
-    cb(context);
-  },
-  'usage-purchase': (sessionId, context, cb) => {
-    const recipientId = sessions[sessionId].fbid;
-    sendButtonMessage(recipientId, "Awesome, is this a ", btnPropertyTypes);
-    cb(context);
-  },
-  'property-type-purchase': (sessionId, context, cb) => {
-    const recipientId = sessions[sessionId].fbid;
-    sendTextMessage(recipientId, "Okay,  what's your credit score?");
-    cb(context);
-  },
-  'credit-purchase': (sessionId, context, cb) => {
-    const recipientId = sessions[sessionId].fbid;
-    sessions[sessionId].context.credit_score = sessions[sessionId].context.numberStr;
-    context.credit_score = sessions[sessionId].context.credit_score;
-    sendTextMessage(recipientId, "And the last question, what is your ZIP code ?");
-    cb(context);
-  },
-  'purchase-zipcode': (sessionId, context, cb) => {
-    const recipientId = sessions[sessionId].fbid;
-    sessions[sessionId].context.zipcode = sessions[sessionId].context.numberStr;
-    context.zipcode = sessions[sessionId].context.zipcode;
-    sendTextMessage(recipientId, "Thanks for your effort. We will notite you soon");
-    console.log("End of purchase \n");
-    console.log(context);
-    delete sessions[sessionId];
-    cb(context);
-  },
-  //refinance zip code
   'zipcode': (sessionId, context, cb) => {
     const recipientId = sessions[sessionId].fbid;
     sessions[sessionId].context.zipcode = sessions[sessionId].context.numberStr;
     context.zipcode = sessions[sessionId].context.zipcode;
-    sendTextMessage(recipientId, "Awesome, how about estimated current value? (Hint: use Zillow estimate) ");
+    if(context.purpose === "purchase") {
+      sendTextMessage(recipientId, "Awesome, how about purchase price? ");
+    }else {
+      sendTextMessage(recipientId, "Awesome, how about estimated current value? (Hint: use Zillow estimate) ");
+    }
     cb(context);
   },
-  'property-value': (sessionId, context, cb) => {
+  'property_value': (sessionId, context, cb) => {
     const recipientId = sessions[sessionId].fbid;
     sessions[sessionId].context.property_value = sessions[sessionId].context.numberStr;
     context.property_value = sessions[sessionId].context.property_value;
-    sendTextMessage(recipientId, "Current mortgage balance?");
+    if(context.purpose === "purchase") {
+      sendTextMessage(recipientId, "How about down payment? ");
+    }else {
+      sendTextMessage(recipientId, "Current mortgage balance? ");
+    }
     cb(context);
   },
-  'mortgage-balance-downpayment': (sessionId, context, cb) => {
+  'downpayment_balance': (sessionId, context, cb) => {
     const recipientId = sessions[sessionId].fbid;
-    sessions[sessionId].context.mortgage_balance = sessions[sessionId].context.numberStr;
-    context.mortgage_balance = sessions[sessionId].context.mortgage_balance;
-    context.down_payment = "";
-    sendButtonMessage(recipientId, "Refinance Excellent, is this a ", btnProperties);
+    if(context.purpose === "purchase") {
+      sessions[sessionId].context.down_payment = sessions[sessionId].context.numberStr;
+      context.down_payment = sessions[sessionId].context.down_payment;
+      context.mortgage_balance = "";
+    }else {
+      sessions[sessionId].context.mortgage_balance = sessions[sessionId].context.numberStr;
+      context.mortgage_balance = sessions[sessionId].context.mortgage_balance;
+      context.down_payment="";
+    }
+    sendButtonMessage(recipientId, "Excellent, is this a ", btnProperties);
     cb(context);
   },
   'usage': (sessionId, context, cb) => {
     const recipientId = sessions[sessionId].fbid;
-    sendButtonMessage(recipientId, "Refinance Awesome, is this a ", btnPropertyTypes);
+    sendButtonMessage(recipientId, "Awesome, is this a ", btnPropertyTypes);
     cb(context);
   },
-  'credit-refinance': (sessionId, context, cb) => {
+  'credit_score': (sessionId, context, cb) => {
     const recipientId = sessions[sessionId].fbid;
     sessions[sessionId].context.credit_score = sessions[sessionId].context.numberStr;
     context.credit_score = sessions[sessionId].context.credit_score;
-    sendTextMessage(recipientId, "Refinance We will notice you soon.");
-    console.log("End of refinance \n");
     context.done = true;
-    console.log(context);
+    sendTextMessage(recipientId, "Thanks for your using! We will notice you soon.");
     cb(context);
   },
   // 'property-type-purchase': (sessionId, context, cb) => {
@@ -462,16 +434,17 @@ app.post('/webhook', (req, res) => {
             // Our bot did everything it has to do.
             // Now it's waiting for further messages to proceed.
             console.log('Waiting for futher messages.');
-
+            // Updating the user's current session state
+            sessions[sessionId].context = context;
             // Based on the session state, you might want to reset the session.
             // This depends heavily on the business logic of your bot.
             // Example:
             if (context['done']) {
+              console.log("end of a story !");
               delete sessions[sessionId];
             }
 
-            // Updating the user's current session state
-            sessions[sessionId].context = context;
+
           }
         }, maxSteps
       );
